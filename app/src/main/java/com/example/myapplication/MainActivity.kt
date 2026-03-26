@@ -1,6 +1,7 @@
 package com.example.myapplication
 
 import android.os.Bundle
+import android.os.Environment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -64,9 +65,14 @@ import com.example.myapplication.ui.ScreenTab
 import com.example.myapplication.ui.theme.FreeReelsTheme
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.example.myapplication.utils.ErrorLogger
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<FreeReelsViewModel> {
@@ -243,7 +249,20 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
-                        NativeVideoPlayer(url = item.videoUrl)
+                        // Wrap video player with error handling
+                        try {
+                            NativeVideoPlayer(
+                                url = item.videoUrl,
+                                onError = { error ->
+                                    viewModel.logVideoError(error, item)
+                                }
+                            )
+                        } catch (e: Exception) {
+                            Text(
+                                text = "Gagal memuat video: ${e.message}",
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
                     }
                 }
             },
@@ -366,32 +385,78 @@ private fun DramaRow(item: DramaItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun NativeVideoPlayer(url: String) {
+private fun NativeVideoPlayer(url: String, onError: (String) -> Unit = {}) {
     val context = LocalContext.current
+    var playerError by remember { mutableStateOf<String?>(null) }
+    
     val exoPlayer = remember(url) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(url))
-            prepare()
-            playWhenReady = true
+        try {
+            ExoPlayer.Builder(context).build().apply {
+                addListener(object : Player.Listener {
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        super.onPlayerError(error)
+                        val errorMessage = "Video playback error: ${error.message}"
+                        playerError = errorMessage
+                        onError(errorMessage)
+                    }
+                })
+                
+                setMediaItem(MediaItem.fromUri(url))
+                prepare()
+                playWhenReady = true
+            }
+        } catch (e: Exception) {
+            val errorMessage = "Failed to initialize player: ${e.message}"
+            playerError = errorMessage
+            onError(errorMessage)
+            null
         }
     }
 
     DisposableEffect(exoPlayer) {
         onDispose {
-            exoPlayer.release()
+            exoPlayer?.release()
         }
     }
 
-    AndroidView(
-        factory = { ctx ->
-            PlayerView(ctx).apply {
-                player = exoPlayer
-                useController = true
-            }
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f)
-            .clip(RoundedCornerShape(10.dp))
-    )
+    if (playerError != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "⚠️ $playerError",
+                color = Color.White,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+    } else if (exoPlayer != null) {
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = true
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(10.dp))
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = Color.White)
+        }
+    }
 }
