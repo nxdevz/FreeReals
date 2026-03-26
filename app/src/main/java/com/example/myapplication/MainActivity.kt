@@ -5,18 +5,29 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.weight
@@ -24,20 +35,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -51,18 +59,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
-import com.example.myapplication.data.provideRepository
-import com.example.myapplication.model.DramaItem
-import com.example.myapplication.ui.FreeReelsViewModel
-import com.example.myapplication.ui.FreeReelsViewModelFactory
-import com.example.myapplication.ui.ScreenTab
-import com.example.myapplication.ui.theme.FreeReelsTheme
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import coil.compose.AsyncImage
+import com.example.myapplication.data.provideRepository
+import com.example.myapplication.model.DramaItem
+import com.example.myapplication.FreeReelsViewModel
+import com.example.myapplication.ui.FreeReelsViewModelFactory
+import com.example.myapplication.ui.ScreenTab
+import com.example.myapplication.ui.theme.FreeReelsTheme
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<FreeReelsViewModel> {
@@ -82,76 +90,40 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activeFeed = uiState.feeds.getValue(uiState.activeTab)
     val hero = activeFeed.items.firstOrNull()
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            Text(
-                text = " NxDrama",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            Text(
-                text = "Nonton Drama dan Anime",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            HeaderSection()
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            HeroSection(
-                item = hero,
-                onWatchClick = { hero?.let(viewModel::openDetail) },
-                modifier = Modifier.padding(horizontal = 12.dp),
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            TabRow(
-                selectedTabIndex = uiState.activeTab.ordinal,
-                containerColor = Color.Transparent,
-                modifier = Modifier.padding(horizontal = 4.dp),
+            AnimatedContent(
+                targetState = hero?.id,
+                label = "hero-transition",
+                transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(220)) },
             ) {
-                ScreenTab.entries.forEach { tab ->
-                    Tab(
-                        selected = uiState.activeTab == tab,
-                        onClick = { viewModel.onTabSelected(tab) },
-                        text = { Text(tab.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    )
-                }
+                HeroSection(
+                    item = hero,
+                    onWatchClick = { hero?.let(viewModel::openDetail) },
+                    onSearchClick = { viewModel.onTabSelected(ScreenTab.SEARCH) },
+                )
             }
 
-            if (uiState.activeTab == ScreenTab.SEARCH) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TextField(
-                        value = uiState.searchQuery,
-                        onValueChange = viewModel::onSearchQueryChange,
-                        singleLine = true,
-                        placeholder = { Text("Cari judul drama atau anime") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Button(onClick = viewModel::performSearch) {
-                        Text("Cari")
-                    }
-                }
+            TabBar(activeTab = uiState.activeTab, onSelect = viewModel::onTabSelected)
+
+            AnimatedVisibility(
+                visible = uiState.activeTab == ScreenTab.SEARCH,
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(140)),
+            ) {
+                SearchSection(
+                    query = uiState.searchQuery,
+                    onQueryChange = viewModel::onSearchQueryChange,
+                    onSearch = viewModel::performSearch,
+                )
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
@@ -166,76 +138,77 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .padding(16.dp),
+                                .padding(horizontal = 20.dp),
                         )
                     }
 
                     activeFeed.items.isEmpty() -> {
                         Text(
                             text = "Belum ada data untuk ditampilkan.",
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
                             modifier = Modifier.align(Alignment.Center),
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f),
                         )
                     }
 
                     else -> {
                         LazyColumn(
-                            contentPadding = PaddingValues(bottom = 24.dp),
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         ) {
                             items(activeFeed.items, key = { it.id }) { item ->
                                 DramaRow(item = item, onClick = { viewModel.openDetail(item) })
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                                HorizontalDivider(color = Color(0xFF27272A), thickness = 1.dp)
                             }
                         }
                     }
                 }
             }
         }
-    }
 
-    uiState.selectedItem?.let { item ->
-        AlertDialog(
-            onDismissRequest = viewModel::dismissDetail,
-            title = { Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(item.description, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    if (item.videoUrl.isBlank()) {
-                        Text(
-                            text = "Video belum tersedia untuk judul ini.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        NativeVideoPlayer(url = item.videoUrl)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissDetail) {
-                    Text("Tutup")
-                }
-            },
+        DetailOverlay(item = uiState.selectedItem, onDismiss = viewModel::dismissDetail)
+    }
+}
+
+@Composable
+private fun HeaderSection() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = "FreeReels Mobile",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF6EE7B7),
+        )
+        Text(
+            text = "Nonton Drama & Anime",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
         )
     }
 }
 
 @Composable
-private fun HeroSection(item: DramaItem?, onWatchClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun HeroSection(
+    item: DramaItem?,
+    onWatchClick: () -> Unit,
+    onSearchClick: () -> Unit,
+) {
     Box(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .height(210.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF101317))
+            .height(256.dp)
+            .background(Color(0xFF18181B))
     ) {
         if (item == null) {
             Text(
-                text = "Sedang menyiapkan rekomendasi...",
+                text = "Sedang menyiapkan rekomendasi untuk kamu...",
+                color = Color(0xFFA1A1AA),
                 modifier = Modifier
-                    .align(Alignment.Center)
+                    .align(Alignment.BottomStart)
                     .padding(16.dp),
-                color = Color(0xFFB0BEC5),
             )
         } else {
             AsyncImage(
@@ -248,14 +221,14 @@ private fun HeroSection(item: DramaItem?, onWatchClick: () -> Unit, modifier: Mo
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.35f))
+                    .background(Color.Black.copy(alpha = 0.42f)),
             )
 
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
                     text = item.title,
@@ -272,13 +245,87 @@ private fun HeroSection(item: DramaItem?, onWatchClick: () -> Unit, modifier: Mo
                     color = Color.White.copy(alpha = 0.9f),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Button(onClick = onWatchClick) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        androidx.compose.material3.Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Text("Tonton")
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onWatchClick) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
+                            Text("Tonton Sekarang")
+                        }
+                    }
+
+                    TextButton(
+                        onClick = onSearchClick,
+                        modifier = Modifier.border(
+                            width = 1.dp,
+                            color = Color.White.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(8.dp),
+                        )
+                    ) {
+                        Text("Cari Judul", color = Color.White)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TabBar(activeTab: ScreenTab, onSelect: (ScreenTab) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        ScreenTab.entries.forEach { tab ->
+            val selected = activeTab == tab
+            val bgAlpha by animateFloatAsState(
+                targetValue = if (selected) 1f else 0f,
+                animationSpec = tween(260),
+                label = "tab-bg",
+            )
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF6EE7B7).copy(alpha = bgAlpha))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onSelect(tab) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = tab.label,
+                    maxLines = 1,
+                    color = if (selected) Color(0xFF09090B) else Color(0xFFD4D4D8),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchSection(query: String, onQueryChange: (String) -> Unit, onSearch: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            placeholder = { Text("Cari judul drama atau anime") },
+        )
+        Button(onClick = onSearch) {
+            Text("Cari")
         }
     }
 }
@@ -289,7 +336,7 @@ private fun DramaRow(item: DramaItem, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         AsyncImage(
@@ -297,14 +344,12 @@ private fun DramaRow(item: DramaItem, onClick: () -> Unit) {
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(width = 70.dp, height = 98.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .size(width = 64.dp, height = 96.dp)
+                .clip(RoundedCornerShape(6.dp)),
         )
 
         Column(
-            modifier = Modifier
-                .weight(1f)  // Changed: Use .weight() directly on Column
-                .fillMaxWidth(),  // Added fillMaxWidth for proper sizing
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
@@ -321,10 +366,81 @@ private fun DramaRow(item: DramaItem, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${item.episodes} episode • ${item.followers} followers • ${item.subtitleCount} subtitle",
+                text = "${item.episodes} episode • ${formatFollowers(item.followers)} followers • ${item.subtitleCount} subtitle",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.68f),
             )
+        }
+    }
+}
+
+@Composable
+private fun DetailOverlay(item: DramaItem?, onDismiss: () -> Unit) {
+    AnimatedVisibility(
+        visible = item != null,
+        enter = fadeIn(tween(200)) + slideInVertically(initialOffsetY = { it / 5 }),
+        exit = fadeOut(tween(180)) + slideOutVertically(targetOffsetY = { it / 5 }),
+    ) {
+        val selectedItem = item ?: return@AnimatedVisibility
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.72f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                    .background(Color(0xFF18181B))
+                    .padding(16.dp)
+                    .imePadding()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {},
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = null,
+                        modifier = Modifier.clickable(onClick = onDismiss),
+                    )
+                    Text(
+                        text = selectedItem.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                Text(
+                    text = selectedItem.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                if (selectedItem.videoUrl.isBlank()) {
+                    Text(
+                        text = "Video belum tersedia untuk judul ini.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    NativeVideoPlayer(url = selectedItem.videoUrl)
+                }
+
+                Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text("Tutup")
+                }
+            }
         }
     }
 }
@@ -341,9 +457,7 @@ private fun NativeVideoPlayer(url: String) {
     }
 
     DisposableEffect(exoPlayer) {
-        onDispose {
-            exoPlayer.release()
-        }
+        onDispose { exoPlayer.release() }
     }
 
     AndroidView(
@@ -356,6 +470,17 @@ private fun NativeVideoPlayer(url: String) {
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp)),
     )
+}
+
+private fun formatFollowers(value: Long): String {
+    if (value < 1_000) return value.toString()
+    if (value < 1_000_000) {
+        val compact = (value / 100) / 10f
+        return "${compact.toString().trimEnd('0').trimEnd('.')}K"
+    }
+
+    val compact = (value / 100_000) / 10f
+    return "${compact.toString().trimEnd('0').trimEnd('.')}M"
 }
