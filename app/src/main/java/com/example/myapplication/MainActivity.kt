@@ -40,7 +40,9 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,10 +52,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.myapplication.data.provideRepository
 import com.example.myapplication.model.DramaItem
+import com.example.myapplication.ui.ErrorDialog
 import com.example.myapplication.ui.FreeReelsViewModel
 import com.example.myapplication.ui.FreeReelsViewModelFactory
 import com.example.myapplication.ui.ScreenTab
@@ -62,19 +66,36 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.example.myapplication.utils.ErrorLogger
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<FreeReelsViewModel> {
         FreeReelsViewModelFactory(provideRepository())
     }
+    
+    private var errorDetail by mutableStateOf<ErrorLogger.ErrorDetail?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // Initialize error logger
+        ErrorLogger.init(this) { error ->
+            errorDetail = error
+        }
+        
         setContent {
             FreeReelsTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     FreeReelsApp(viewModel)
+                }
+                
+                // Show error dialog if there's an error
+                errorDetail?.let { error ->
+                    ErrorDialog(
+                        errorDetail = error,
+                        onDismiss = { errorDetail = null }
+                    )
                 }
             }
         }
@@ -160,13 +181,29 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
                     }
 
                     activeFeed.error != null -> {
-                        Text(
-                            text = activeFeed.error ?: "Terjadi kesalahan",
-                            color = MaterialTheme.colorScheme.error,
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .padding(16.dp),
-                        )
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "⚠️ ${activeFeed.error ?: "Terjadi kesalahan"}",
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                            Button(
+                                onClick = {
+                                    if (uiState.activeTab == ScreenTab.SEARCH) {
+                                        viewModel.performSearch()
+                                    } else {
+                                        viewModel.onTabSelected(uiState.activeTab)
+                                    }
+                                }
+                            ) {
+                                Text("Coba Lagi")
+                            }
+                        }
                     }
 
                     activeFeed.items.isEmpty() -> {
@@ -302,8 +339,8 @@ private fun DramaRow(item: DramaItem, onClick: () -> Unit) {
 
         Column(
             modifier = Modifier
-                .weight(1f)  // Changed: Use .weight() directly on Column
-                .fillMaxWidth(),  // Added fillMaxWidth for proper sizing
+                .weight(1f)
+                .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
