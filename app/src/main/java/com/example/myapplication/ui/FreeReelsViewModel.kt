@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.ContentTab
 import com.example.myapplication.data.FreeReelsRepository
 import com.example.myapplication.model.DramaItem
+import com.example.myapplication.utils.ErrorLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -77,6 +78,7 @@ class FreeReelsViewModel(private val repository: FreeReelsRepository) : ViewMode
                     }
                 }
                 .onFailure { throwable ->
+                    ErrorLogger.logException(throwable, "Search failed for query: $query")
                     setFeed(ScreenTab.SEARCH) {
                         it.copy(
                             isLoading = false,
@@ -94,6 +96,15 @@ class FreeReelsViewModel(private val repository: FreeReelsRepository) : ViewMode
 
     fun dismissDetail() {
         _uiState.update { it.copy(selectedItem = null) }
+    }
+    
+    fun logVideoError(errorMessage: String, item: DramaItem) {
+        ErrorLogger.logVideoError(
+            errorMessage = errorMessage,
+            videoUrl = item.videoUrl,
+            dramaTitle = item.title,
+            dramaId = item.id
+        )
     }
 
     private fun loadTab(tab: ScreenTab) {
@@ -114,6 +125,7 @@ class FreeReelsViewModel(private val repository: FreeReelsRepository) : ViewMode
                     }
                 }
                 .onFailure { throwable ->
+                    ErrorLogger.logException(throwable, "Failed to load tab: $tab")
                     setFeed(tab) {
                         it.copy(
                             isLoading = false,
