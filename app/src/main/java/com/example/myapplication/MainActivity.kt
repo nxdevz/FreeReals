@@ -302,7 +302,9 @@ private fun DramaRow(item: DramaItem, onClick: () -> Unit) {
         )
 
         Column(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)  // Changed: Use .weight() directly on Column
+                .fillMaxWidth(),  // Added fillMaxWidth for proper sizing
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
