@@ -249,20 +249,13 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
-                        // Wrap video player with error handling
-                        try {
-                            NativeVideoPlayer(
-                                url = item.videoUrl,
-                                onError = { error ->
-                                    viewModel.logVideoError(error, item)
-                                }
-                            )
-                        } catch (e: Exception) {
-                            Text(
-                                text = "Gagal memuat video: ${e.message}",
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
+                        // Remove try-catch and let NativeVideoPlayer handle errors internally
+                        NativeVideoPlayer(
+                            url = item.videoUrl,
+                            onError = { error ->
+                                viewModel.logVideoError(error, item)
+                            }
+                        )
                     }
                 }
             },
