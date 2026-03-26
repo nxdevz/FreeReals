@@ -1,80 +1,144 @@
 package com.example.myapplication.utils
 
 import android.content.Context
+import android.os.Environment
 import android.util.Log
-import java.io.PrintWriter
-import java.io.StringWriter
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 object ErrorLogger {
-    private const val TAG = "FreeReelsError"
-    private var errorListener: ((ErrorDetail) -> Unit)? = null
-
+    private const val TAG = "NxDramaError"
+    private var appContext: Context? = null
+    private var onErrorCallback: ((ErrorDetail) -> Unit)? = null
+    
     data class ErrorDetail(
-        val timestamp: String,
-        val exception: String,
         val message: String,
-        val stackTrace: String,
-        val thread: String,
-        val deviceInfo: DeviceInfo
+        val timestamp: String,
+        val stackTrace: String? = null,
+        val context: Map<String, String> = emptyMap()
     )
-
-    data class DeviceInfo(
-        val manufacturer: String,
-        val model: String,
-        val androidVersion: String,
-        val sdkVersion: Int,
-        val appVersion: String,
-        val appVersionCode: Long
-    )
-
-    fun init(context: Context, listener: ((ErrorDetail) -> Unit)? = null) {
-        errorListener = listener
-        val defaultUncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
+    
+    fun init(context: Context, onError: (ErrorDetail) -> Unit) {
+        appContext = context.applicationContext
+        onErrorCallback = onError
+    }
+    
+    fun logException(throwable: Throwable, additionalContext: String = "") {
+        val errorDetail = ErrorDetail(
+            message = throwable.message ?: "Unknown error",
+            timestamp = getCurrentTimestamp(),
+            stackTrace = throwable.stackTraceToString(),
+            context = mapOf(
+                "type" to throwable.javaClass.simpleName,
+                "additional_context" to additionalContext
+            )
+        )
         
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            val errorDetail = captureError(throwable, context)
-            Log.e(TAG, "Uncaught exception: ${errorDetail.exception}", throwable)
-            errorListener?.invoke(errorDetail)
+        // Log to Android logcat
+        Log.e(TAG, "Exception occurred: ${errorDetail.message}", throwable)
+        
+        // Save to file
+        saveErrorToFile(errorDetail)
+        
+        // Show dialog via callback
+        onErrorCallback?.invoke(errorDetail)
+    }
+    
+    fun logVideoError(errorMessage: String, videoUrl: String, dramaTitle: String, dramaId: String) {
+        val errorDetail = ErrorDetail(
+            message = errorMessage,
+            timestamp = getCurrentTimestamp(),
+            stackTrace = null,
+            context = mapOf(
+                "type" to "VIDEO_PLAYBACK_ERROR",
+                "video_url" to videoUrl,
+                "drama_title" to dramaTitle,
+                "drama_id" to dramaId
+            )
+        )
+        
+        // Log to Android logcat
+        Log.e(TAG, "Video playback error: $errorMessage | Drama: $dramaTitle | URL: $videoUrl")
+        
+        // Save to file
+        saveErrorToFile(errorDetail)
+        
+        // Show dialog via callback
+        onErrorCallback?.invoke(errorDetail)
+    }
+    
+    fun logError(message: String, additionalContext: Map<String, String> = emptyMap()) {
+        val errorDetail = ErrorDetail(
+            message = message,
+            timestamp = getCurrentTimestamp(),
+            stackTrace = null,
+            context = additionalContext
+        )
+        
+        // Log to Android logcat
+        Log.e(TAG, message)
+        
+        // Save to file
+        saveErrorToFile(errorDetail)
+        
+        // Show dialog via callback
+        onErrorCallback?.invoke(errorDetail)
+    }
+    
+    private fun saveErrorToFile(errorDetail: ErrorDetail) {
+        try {
+            val context = appContext ?: return
             
-            // Call original handler
-            defaultUncaughtExceptionHandler?.uncaughtException(thread, throwable)
+            // Create directory if it doesn't exist
+            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val nxDramaDir = File(downloadDir, "NxDrama")
+            if (!nxDramaDir.exists()) {
+                nxDramaDir.mkdirs()
+            }
+            
+            val errorFile = File(nxDramaDir, "Error.txt")
+            
+            // Prepare error log entry
+            val logEntry = buildString {
+                appendLine("=" .repeat(80))
+                appendLine("Timestamp: ${errorDetail.timestamp}")
+                appendLine("Message: ${errorDetail.message}")
+                
+                if (errorDetail.context.isNotEmpty()) {
+                    appendLine("Context:")
+                    errorDetail.context.forEach { (key, value) ->
+                        appendLine("  $key: $value")
+                    }
+                }
+                
+                errorDetail.stackTrace?.let {
+                    appendLine("Stack Trace:")
+                    appendLine(it)
+                }
+                
+                appendLine("=" .repeat(80))
+                appendLine()
+            }
+            
+            // Append to file
+            FileOutputStream(errorFile, true).use { outputStream ->
+                outputStream.write(logEntry.toByteArray())
+            }
+            
+            Log.d(TAG, "Error saved to: ${errorFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save error to file", e)
         }
     }
-
-    fun captureError(throwable: Throwable, context: Context): ErrorDetail {
-        val stringWriter = StringWriter()
-        val printWriter = PrintWriter(stringWriter)
-        throwable.printStackTrace(printWriter)
-        val stackTrace = stringWriter.toString()
-        
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-        
-        return ErrorDetail(
-            timestamp = dateFormat.format(Date()),
-            exception = throwable.javaClass.simpleName,
-            message = throwable.message ?: "Tidak ada pesan error",
-            stackTrace = stackTrace,
-            thread = Thread.currentThread().name,
-            deviceInfo = getDeviceInfo(context)
-        )
+    
+    private fun getCurrentTimestamp(): String {
+        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
     }
-
-    private fun getDeviceInfo(context: Context): DeviceInfo {
-        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-        return DeviceInfo(
-            manufacturer = android.os.Build.MANUFACTURER,
-            model = android.os.Build.MODEL,
-            androidVersion = android.os.Build.VERSION.RELEASE,
-            sdkVersion = android.os.Build.VERSION.SDK_INT,
-            appVersion = packageInfo.versionName ?: "unknown",
-            appVersionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode
-            } else {
-                packageInfo.versionCode.toLong()
-            }
-        )
+    
+    private fun Throwable.stackTraceToString(): String {
+        return Log.getStackTraceString(this)
     }
 }
