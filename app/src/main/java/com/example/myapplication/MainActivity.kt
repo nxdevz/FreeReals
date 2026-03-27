@@ -35,7 +35,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -86,7 +85,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             FreeReelsTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    FreeReelsApp(viewModel)
+                    FreeReelsApp(viewModel, this@MainActivity)
                 }
                 
                 // Show error dialog if there's an error
@@ -100,8 +99,8 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    // Method to open detail activity
-    private fun openDetailActivity(item: DramaItem) {
+    // Method to open detail activity - change from private to internal
+    internal fun openDetailActivity(item: DramaItem) {
         val intent = Intent(this, DetailActivity::class.java).apply {
             putExtra(DetailActivity.EXTRA_DRAMA_ITEM, item)
         }
@@ -111,8 +110,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
-    val context = LocalContext.current
+private fun FreeReelsApp(viewModel: FreeReelsViewModel, activity: MainActivity) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activeFeed = uiState.feeds.getValue(uiState.activeTab)
     val hero = activeFeed.items.firstOrNull()
@@ -144,9 +142,8 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
                 item = hero,
                 onWatchClick = { 
                     hero?.let { 
-                        // Open detail activity instead of dialog
-                        val activity = context as? MainActivity
-                        activity?.openDetailActivity(it)
+                        // Open detail activity
+                        activity.openDetailActivity(it)
                     }
                 },
                 modifier = Modifier.padding(horizontal = 12.dp),
@@ -237,9 +234,8 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
                                 DramaRow(
                                     item = item, 
                                     onClick = { 
-                                        // Open detail activity instead of dialog
-                                        val activity = context as? MainActivity
-                                        activity?.openDetailActivity(item)
+                                        // Open detail activity
+                                        activity.openDetailActivity(item)
                                     }
                                 )
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
@@ -250,9 +246,6 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
             }
         }
     }
-    
-    // Remove the AlertDialog for selectedItem since we're using DetailActivity now
-    // The selectedItem state is kept but not used - can be removed from ViewModel if desired
 }
 
 @Composable
