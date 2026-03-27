@@ -1,6 +1,8 @@
 package com.example.myapplication.ui
 
 import android.os.Bundle
+import android.os.Build
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -61,7 +64,12 @@ class DetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        val dramaItem = intent.getSerializableExtra(EXTRA_DRAMA_ITEM) as? DramaItem
+        val dramaItem = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        intent.getSerializableExtra(EXTRA_DRAMA_ITEM, DramaItem::class.java)
+        } else {
+        @Suppress("DEPRECATION")
+        intent.getSerializableExtra(EXTRA_DRAMA_ITEM) as? DramaItem
+    }
         
         setContent {
             MaterialTheme {
@@ -84,6 +92,7 @@ class DetailActivity : ComponentActivity() {
 @Composable
 fun DetailScreen(item: DramaItem, onBackPressed: () -> Unit) {
     var showVideoPlayer by remember { mutableStateOf(true) }
+    val listState = rememberLazyListState()
     
     Scaffold(
         topBar = {
@@ -98,7 +107,7 @@ fun DetailScreen(item: DramaItem, onBackPressed: () -> Unit) {
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackPressed) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Kembali")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -109,17 +118,17 @@ fun DetailScreen(item: DramaItem, onBackPressed: () -> Unit) {
         }
     ) { paddingValues ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Video Player Section
-            item {
+            // Video Player Section - Sticky Header
+            stickyHeader {
                 if (item.videoUrl.isNotBlank() && showVideoPlayer) {
                     NativeVideoPlayerFull(
                         url = item.videoUrl,
                         onError = { error ->
-                            // Fixed: Pass all required parameters
                             ErrorLogger.logVideoError(
                                 errorMessage = error,
                                 videoUrl = item.videoUrl,
@@ -180,6 +189,7 @@ fun NativeVideoPlayerFull(url: String, onError: (String) -> Unit = {}) {
     var playerError by remember { mutableStateOf<String?>(null) }
     var isPlayerReady by remember { mutableStateOf(false) }
     
+    // Gunakan remember dengan key yang stabil agar player tidak direcreate saat recomposition
     val exoPlayer = remember(url) {
         try {
             ExoPlayer.Builder(context).build().apply {
@@ -211,7 +221,9 @@ fun NativeVideoPlayerFull(url: String, onError: (String) -> Unit = {}) {
 
     DisposableEffect(exoPlayer) {
         onDispose {
-            exoPlayer?.release()
+            // Jangan release player saat dispose untuk menjaga state video
+            // Player akan tetap berjalan meskipun composable di-recompose
+            // exoPlayer?.release()
         }
     }
 
