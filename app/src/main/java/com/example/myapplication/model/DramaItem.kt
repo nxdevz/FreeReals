@@ -1,5 +1,7 @@
 package com.example.myapplication.model
 
+import java.io.Serializable
+
 data class DramaItem(
     val id: String,
     val title: String,
@@ -10,4 +12,4 @@ data class DramaItem(
     val subtitleCount: Int,
     val tags: List<String>,
     val videoUrl: String
-)
+) : Serializable
