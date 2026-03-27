@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Environment
 import androidx.activity.ComponentActivity
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,7 +38,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,21 +51,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.myapplication.data.provideRepository
 import com.example.myapplication.model.DramaItem
+import com.example.myapplication.ui.DetailActivity
 import com.example.myapplication.ui.ErrorDialog
 import com.example.myapplication.ui.FreeReelsViewModel
 import com.example.myapplication.ui.FreeReelsViewModelFactory
 import com.example.myapplication.ui.ScreenTab
 import com.example.myapplication.ui.theme.FreeReelsTheme
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import com.example.myapplication.utils.ErrorLogger
 import java.io.File
 import java.text.SimpleDateFormat
@@ -106,11 +99,20 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    
+    // Method to open detail activity
+    private fun openDetailActivity(item: DramaItem) {
+        val intent = Intent(this, DetailActivity::class.java).apply {
+            putExtra(DetailActivity.EXTRA_DRAMA_ITEM, item)
+        }
+        startActivity(intent)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activeFeed = uiState.feeds.getValue(uiState.activeTab)
     val hero = activeFeed.items.firstOrNull()
@@ -140,7 +142,13 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
 
             HeroSection(
                 item = hero,
-                onWatchClick = { hero?.let(viewModel::openDetail) },
+                onWatchClick = { 
+                    hero?.let { 
+                        // Open detail activity instead of dialog
+                        val activity = context as? MainActivity
+                        activity?.openDetailActivity(it)
+                    }
+                },
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
 
@@ -226,7 +234,14 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
                             modifier = Modifier.fillMaxSize()
                         ) {
                             items(activeFeed.items, key = { it.id }) { item ->
-                                DramaRow(item = item, onClick = { viewModel.openDetail(item) })
+                                DramaRow(
+                                    item = item, 
+                                    onClick = { 
+                                        // Open detail activity instead of dialog
+                                        val activity = context as? MainActivity
+                                        activity?.openDetailActivity(item)
+                                    }
+                                )
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
                             }
                         }
@@ -235,37 +250,9 @@ private fun FreeReelsApp(viewModel: FreeReelsViewModel) {
             }
         }
     }
-
-    uiState.selectedItem?.let { item ->
-        AlertDialog(
-            onDismissRequest = viewModel::dismissDetail,
-            title = { Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(item.description, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    if (item.videoUrl.isBlank()) {
-                        Text(
-                            text = "Video belum tersedia untuk judul ini.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        // Remove try-catch and let NativeVideoPlayer handle errors internally
-                        NativeVideoPlayer(
-                            url = item.videoUrl,
-                            onError = { error ->
-                                viewModel.logVideoError(error, item)
-                            }
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissDetail) {
-                    Text("Tutup")
-                }
-            },
-        )
-    }
+    
+    // Remove the AlertDialog for selectedItem since we're using DetailActivity now
+    // The selectedItem state is kept but not used - can be removed from ViewModel if desired
 }
 
 @Composable
@@ -373,83 +360,6 @@ private fun DramaRow(item: DramaItem, onClick: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.68f),
             )
-        }
-    }
-}
-
-@Composable
-private fun NativeVideoPlayer(url: String, onError: (String) -> Unit = {}) {
-    val context = LocalContext.current
-    var playerError by remember { mutableStateOf<String?>(null) }
-    
-    val exoPlayer = remember(url) {
-        try {
-            ExoPlayer.Builder(context).build().apply {
-                addListener(object : Player.Listener {
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                        super.onPlayerError(error)
-                        val errorMessage = "Video playback error: ${error.message}"
-                        playerError = errorMessage
-                        onError(errorMessage)
-                    }
-                })
-                
-                setMediaItem(MediaItem.fromUri(url))
-                prepare()
-                playWhenReady = true
-            }
-        } catch (e: Exception) {
-            val errorMessage = "Failed to initialize player: ${e.message}"
-            playerError = errorMessage
-            onError(errorMessage)
-            null
-        }
-    }
-
-    DisposableEffect(exoPlayer) {
-        onDispose {
-            exoPlayer?.release()
-        }
-    }
-
-    if (playerError != null) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color.Black),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "⚠️ $playerError",
-                color = Color.White,
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-    } else if (exoPlayer != null) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = true
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(10.dp))
-        )
-    } else {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color.Black),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(color = Color.White)
         }
     }
 }
