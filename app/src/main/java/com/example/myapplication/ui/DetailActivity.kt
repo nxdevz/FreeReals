@@ -15,14 +15,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,18 +41,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import coil.compose.AsyncImage
 import com.example.myapplication.model.DramaItem
 import com.example.myapplication.utils.ErrorLogger
 
@@ -124,14 +119,20 @@ fun DetailScreen(item: DramaItem, onBackPressed: () -> Unit) {
                     NativeVideoPlayerFull(
                         url = item.videoUrl,
                         onError = { error ->
-                            ErrorLogger.logVideoError(error, item)
+                            // Fixed: Pass all required parameters
+                            ErrorLogger.logVideoError(
+                                errorMessage = error,
+                                videoUrl = item.videoUrl,
+                                dramaTitle = item.title,
+                                dramaId = item.id
+                            )
                         }
                     )
                 } else if (item.videoUrl.isBlank()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp)
+                            .height(250.dp)
                             .background(Color.Black),
                         contentAlignment = Alignment.Center
                     ) {
@@ -156,10 +157,13 @@ fun DetailScreen(item: DramaItem, onBackPressed: () -> Unit) {
             }
             
             // Episode Items
-            items(generateEpisodes(10)) { episode ->
+            items(generateEpisodes(item.episodes)) { episode ->
                 EpisodeRow(
                     episodeNumber = episode,
-                    onClick = { /* Handle episode click */ }
+                    onClick = { 
+                        // Handle episode click - you can implement episode-specific video URLs here
+                        // For now, just show a message or play the same video
+                    }
                 )
             }
             
